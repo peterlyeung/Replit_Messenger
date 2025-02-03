@@ -48,27 +48,35 @@ export function setupWebSocket(server: Server) {
               throw new Error('Invalid message parameters');
             }
 
-            const newMessage = await db.insert(messages).values({
-              content: message.content,
-              senderId: userId,
-              receiverId: message.receiverId,
-              createdAt: new Date()
-            }).returning();
+            try {
+              const newMessage = await db.insert(messages).values({
+                content: message.content,
+                senderId: userId,
+                receiverId: message.receiverId,
+                createdAt: new Date()
+              }).returning();
 
-            log(`Message sent from ${userId} to ${message.receiverId}`, 'websocket');
+              log(`Message sent from ${userId} to ${message.receiverId}`, 'websocket');
 
-            // Send to sender for immediate feedback
-            ws.send(JSON.stringify({
-              type: 'message_sent',
-              message: newMessage[0]
-            }));
-
-            // Send to receiver if online
-            const receiverWs = clients.get(message.receiverId);
-            if (receiverWs?.readyState === WebSocket.OPEN) {
-              receiverWs.send(JSON.stringify({
-                type: 'new_message',
+              // Send to sender for immediate feedback
+              ws.send(JSON.stringify({
+                type: 'message_sent',
                 message: newMessage[0]
+              }));
+
+              // Send to receiver if online
+              const receiverWs = clients.get(message.receiverId);
+              if (receiverWs?.readyState === WebSocket.OPEN) {
+                receiverWs.send(JSON.stringify({
+                  type: 'new_message',
+                  message: newMessage[0]
+                }));
+              }
+            } catch (dbError) {
+              console.error('Database error:', dbError);
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Failed to save message'
               }));
             }
             break;

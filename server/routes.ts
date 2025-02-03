@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { db } from "@db";
 import { messages } from "@db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import { setupWebSocket } from "./ws";
 
 export function registerRoutes(app: Express): Server {
@@ -11,17 +11,23 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/messages/:userId/:otherId", async (req, res) => {
     const { userId, otherId } = req.params;
-    
+
     const chatMessages = await db.query.messages.findMany({
-      where: and(
-        eq(messages.senderId, parseInt(userId)),
-        eq(messages.receiverId, parseInt(otherId))
+      where: or(
+        and(
+          eq(messages.senderId, parseInt(userId)),
+          eq(messages.receiverId, parseInt(otherId))
+        ),
+        and(
+          eq(messages.senderId, parseInt(otherId)),
+          eq(messages.receiverId, parseInt(userId))
+        )
       ),
       orderBy: [desc(messages.createdAt)],
       limit: 50
     });
-    
-    res.json(chatMessages);
+
+    res.json(chatMessages.reverse());
   });
 
   return httpServer;
